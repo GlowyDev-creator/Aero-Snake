@@ -1,0 +1,433 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Snake Aero: Liquid Motion</title>
+    <style>
+        :root {
+            --aqua-gradient: linear-gradient(180deg, #b4e391 0%, #61c419 50%, #b4e391 100%);
+            --blue-glass: rgba(0, 150, 255, 0.2);
+            --gloss: linear-gradient(180deg, rgba(255,255,255,0.7) 0%, rgba(255,255,255,0) 50%);
+        }
+
+        body {
+            margin: 0;
+            overflow: hidden;
+            background: radial-gradient(circle at center, #005a9c 0%, #001a33 100%);
+            font-family: 'Segoe UI', Arial, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            color: white;
+        }
+
+        /* Fondo Animado Aero */
+        .aero-bg {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            z-index: -1;
+            background: url('https://www.transparenttextures.com/patterns/pinstriped-suit.png');
+            opacity: 0.2;
+        }
+
+        .bubble {
+            position: absolute;
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            border-radius: 50%;
+            pointer-events: none;
+            box-shadow: inset -5px -5px 15px rgba(255, 255, 255, 0.2);
+            animation: float 10s infinite ease-in-out;
+        }
+
+        @keyframes float {
+            0% { transform: translateY(110vh) scale(1); opacity: 0; }
+            50% { opacity: 0.5; }
+            100% { transform: translateY(-10vh) scale(1.5); opacity: 0; }
+        }
+
+        /* Contenedor del Juego */
+        #main-wrapper {
+            position: relative;
+            background: var(--blue-glass);
+            padding: 25px;
+            border-radius: 40px;
+            border: 1px solid rgba(255, 255, 255, 0.4);
+            backdrop-filter: blur(20px);
+            box-shadow: 0 0 50px rgba(0,0,0,0.5), inset 0 0 20px rgba(255,255,255,0.2);
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        canvas {
+            background: #000;
+            border-radius: 20px;
+            box-shadow: 0 0 30px rgba(0, 210, 255, 0.4);
+            image-rendering: auto; /* Optimizado para suavizado */
+        }
+
+        /* Dashboard de Botones Aqua */
+        .controls-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 12px;
+        }
+
+        .btn-aqua {
+            all: unset;
+            cursor: pointer;
+            position: relative;
+            padding: 12px 18px;
+            background: linear-gradient(180deg, #2fa4e7 0%, #1d7db3 50%, #17699a 51%, #208bc5 100%);
+            border-radius: 12px;
+            border: 1px solid #105a81;
+            text-align: center;
+            font-weight: bold;
+            font-size: 13px;
+            text-transform: uppercase;
+            box-shadow: 0 3px 6px rgba(0,0,0,0.3);
+            transition: 0.1s;
+            overflow: hidden;
+        }
+
+        .btn-aqua::after {
+            content: '';
+            position: absolute;
+            top: 1px; left: 5%; width: 90%; height: 45%;
+            background: var(--gloss);
+            border-radius: 10px 10px 50% 50%;
+        }
+
+        .btn-aqua:hover { filter: brightness(1.15); transform: translateY(-1px); }
+        .btn-aqua:active { transform: translateY(1px); filter: brightness(0.9); }
+
+        .btn-green { background: linear-gradient(180deg, #7ed129 0%, #46920a 50%, #3a7a08 51%, #56a512 100%); border-color: #2a5a06; }
+        .btn-orange { background: linear-gradient(180deg, #fbb44d 0%, #f89406 50%, #e08605 51%, #f19106 100%); border-color: #a36104; }
+
+        /* HUD */
+        .hud {
+            display: flex;
+            justify-content: space-between;
+            font-size: 20px;
+            font-weight: 900;
+            letter-spacing: 1px;
+            text-shadow: 0 2px 5px rgba(0,0,0,0.5);
+        }
+
+        /* Overlay */
+        #overlay {
+            position: absolute;
+            top: 25px; left: 25px; 
+            width: 600px; height: 600px;
+            background: rgba(0, 20, 40, 0.8);
+            border-radius: 20px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 100;
+            transition: 0.5s;
+        }
+
+        .hidden { opacity: 0; pointer-events: none; }
+    </style>
+</head>
+<body>
+
+<div class="aero-bg" id="aero-bg"></div>
+
+<div id="main-wrapper">
+    <div class="hud">
+        <span id="score">PUNTOS: 0</span>
+        <span id="speed-label">VELOCIDAD: 1x</span>
+        <span id="hi-score">MAX: 0</span>
+    </div>
+
+    <canvas id="gameCanvas" width="600" height="600"></canvas>
+
+    <div id="overlay">
+        <h1 style="font-size: 50px; margin: 0; text-shadow: 0 0 20px #00d2ff;">AERO SNAKE</h1>
+        <p style="margin-bottom: 30px; opacity: 0.8;">WASD / Flechas para Controlar</p>
+        <button class="btn-aqua btn-green" style="font-size: 24px; padding: 15px 40px;" onclick="startGame()">INICIAR</button>
+    </div>
+
+    <div class="controls-grid">
+        <button class="btn-aqua" onclick="changeSpeed(0.12)">MODO LENTO</button>
+        <button class="btn-aqua" onclick="changeSpeed(0.20)">ESTÁNDAR</button>
+        <button class="btn-aqua" onclick="changeSpeed(0.35)">SÚPER TURBO</button>
+        <button class="btn-aqua btn-orange" onclick="resetGame()">REINICIAR</button>
+        <button class="btn-aqua" onclick="toggleBlur()">DESENFOQUE: ON</button>
+        <button class="btn-aqua" onclick="toggleParticles()">FX: ON</button>
+        <button class="btn-aqua" onclick="changeSnakeTheme('aqua')">TEMA AQUA</button>
+        <button class="btn-aqua" onclick="changeSnakeTheme('magma')">TEMA MAGMA</button>
+    </div>
+</div>
+
+<script>
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    const scoreText = document.getElementById('score');
+    const hiText = document.getElementById('hi-score');
+    const speedText = document.getElementById('speed-label');
+    const overlay = document.getElementById('overlay');
+
+    // Configuración de resolución y suavizado
+    const gridSize = 30;
+    const tileCount = canvas.width / gridSize;
+
+    // Estado del juego
+    let snake = [];
+    let food = { x: 5, y: 5 };
+    let direction = { x: 1, y: 0 };
+    let nextDirection = { x: 1, y: 0 };
+    let score = 0;
+    let hiScore = 0;
+    let gameActive = false;
+    let particles = [];
+    
+    // Variables de suavizado (Smooth Movement)
+    let moveProgress = 0; // De 0 a 1 para interpolar entre celdas
+    let moveSpeed = 0.15; // Velocidad de interpolación
+
+    // Estética
+    let primaryColor = '#00f2fe';
+    let secondaryColor = '#4facfe';
+    let fxEnabled = true;
+    let blurEnabled = false;
+
+    // --- LÓGICA DE CONTROL ---
+    window.addEventListener('keydown', e => {
+        const key = e.key.toLowerCase();
+        if ((key === 'w' || key === 'arrowup') && direction.y === 0) nextDirection = { x: 0, y: -1 };
+        if ((key === 's' || key === 'arrowdown') && direction.y === 0) nextDirection = { x: 0, y: 1 };
+        if ((key === 'a' || key === 'arrowleft') && direction.x === 0) nextDirection = { x: -1, y: 0 };
+        if ((key === 'd' || key === 'arrowright') && direction.x === 0) nextDirection = { x: 1, y: 0 };
+    });
+
+    // --- SISTEMA DE PARTÍCULAS ---
+    class Particle {
+        constructor(x, y, color) {
+            this.x = x; this.y = y;
+            this.vx = (Math.random() - 0.5) * 10;
+            this.vy = (Math.random() - 0.5) * 10;
+            this.alpha = 1;
+            this.color = color;
+            this.size = Math.random() * 8 + 2;
+        }
+        draw() {
+            ctx.globalAlpha = this.alpha;
+            ctx.fillStyle = this.color;
+            ctx.beginPath();
+            ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+            ctx.fill();
+            this.alpha -= 0.02;
+        }
+    }
+
+    function createExplosion(x, y, color) {
+        if (!fxEnabled) return;
+        for (let i = 0; i < 15; i++) particles.push(new Particle(x, y, color));
+    }
+
+    // --- FUNCIONES DE MENÚ ---
+    function startGame() {
+        snake = [
+            { x: 10, y: 10, px: 10, py: 10 },
+            { x: 9, y: 10, px: 9, py: 10 },
+            { x: 8, y: 10, px: 8, py: 10 }
+        ];
+        score = 0;
+        scoreText.innerText = "PUNTOS: 0";
+        overlay.classList.add('hidden');
+        gameActive = true;
+        spawnFood();
+    }
+
+    function changeSpeed(val) { 
+        moveSpeed = val; 
+        speedText.innerText = `VELOCIDAD: ${(val * 10).toFixed(1)}x`;
+    }
+
+    function changeSnakeTheme(theme) {
+        if(theme === 'aqua') { primaryColor = '#00f2fe'; secondaryColor = '#4facfe'; }
+        if(theme === 'magma') { primaryColor = '#ff9a9e'; secondaryColor = '#fecfef'; }
+    }
+
+    function resetGame() { location.reload(); }
+    function toggleBlur() { blurEnabled = !blurEnabled; }
+    function toggleParticles() { fxEnabled = !fxEnabled; }
+
+    function spawnFood() {
+        food = {
+            x: Math.floor(Math.random() * tileCount),
+            y: Math.floor(Math.random() * tileCount)
+        };
+    }
+
+    // --- BUCLE PRINCIPAL (60 FPS) ---
+    function update() {
+        if (!gameActive) return;
+
+        // El progreso de movimiento determina cuán "lejos" está el segmento de su siguiente posición
+        moveProgress += moveSpeed;
+
+        if (moveProgress >= 1) {
+            moveProgress = 0;
+            direction = nextDirection;
+
+            const newHead = { 
+                x: snake[0].x + direction.x, 
+                y: snake[0].y + direction.y,
+                px: snake[0].x, // Posición previa para interpolación
+                py: snake[0].y
+            };
+
+            // Wrap around (Traspasar paredes)
+            if (newHead.x < 0) newHead.x = tileCount - 1;
+            if (newHead.x >= tileCount) newHead.x = 0;
+            if (newHead.y < 0) newHead.y = tileCount - 1;
+            if (newHead.y >= tileCount) newHead.y = 0;
+
+            // Colisión
+            if (snake.some(s => s.x === newHead.x && s.y === newHead.y)) {
+                gameActive = false;
+                overlay.classList.remove('hidden');
+                if (score > hiScore) hiScore = score;
+                hiText.innerText = `MAX: ${hiScore}`;
+                return;
+            }
+
+            snake.unshift(newHead);
+
+            if (newHead.x === food.x && newHead.y === food.y) {
+                score += 10;
+                scoreText.innerText = `PUNTOS: ${score}`;
+                createExplosion(food.x * gridSize + 15, food.y * gridSize + 15, primaryColor);
+                spawnFood();
+            } else {
+                snake.pop();
+            }
+
+            // Actualizar posiciones previas de cada segmento después del movimiento lógico
+            for(let i=0; i<snake.length; i++) {
+                if(!snake[i].px) {
+                    snake[i].px = snake[i].x;
+                    snake[i].py = snake[i].y;
+                }
+            }
+        }
+    }
+
+    function draw() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        if (blurEnabled) ctx.filter = 'blur(4px) brightness(1.2)';
+        else ctx.filter = 'none';
+
+        // Dibujar Comida (Estilo Burbuja Aqua)
+        const foodX = food.x * gridSize + gridSize/2;
+        const foodY = food.y * gridSize + gridSize/2;
+        ctx.fillStyle = '#ff3f3f';
+        ctx.shadowBlur = 15;
+        ctx.shadowColor = '#ff3f3f';
+        ctx.beginPath();
+        ctx.arc(foodX, foodY, gridSize/2.5, 0, Math.PI*2);
+        ctx.fill();
+        ctx.fillStyle = 'rgba(255,255,255,0.6)';
+        ctx.beginPath();
+        ctx.arc(foodX - 4, foodY - 4, 3, 0, Math.PI*2);
+        ctx.fill();
+
+        // Dibujar Serpiente (Smooth)
+        ctx.shadowBlur = 10;
+        ctx.shadowColor = primaryColor;
+        
+        for (let i = 0; i < snake.length; i++) {
+            const seg = snake[i];
+            
+            // Interpolación de posición: PosiciónPrevia + (Dirección * Progreso)
+            // Esto es lo que hace que el movimiento se vea a 60fps
+            let renderX, renderY;
+            
+            if (i === 0) { // Cabeza
+                renderX = (seg.px + (seg.x - seg.px) * moveProgress) * gridSize;
+                renderY = (seg.py + (seg.y - seg.py) * moveProgress) * gridSize;
+            } else {
+                // Los segmentos siguen al anterior de forma fluida
+                const prev = snake[i-1];
+                renderX = (seg.x + (prev.x - seg.x) * moveProgress) * gridSize;
+                renderY = (seg.y + (prev.y - seg.y) * moveProgress) * gridSize;
+            }
+
+            // Corrección de dibujo cuando atraviesa paredes
+            if (Math.abs(seg.x - (snake[i-1]?.x || seg.x)) > 1) continue; 
+
+            ctx.fillStyle = (i === 0) ? primaryColor : secondaryColor;
+            
+            // Dibujado de cuerpo orgánico
+            const size = (i === 0) ? gridSize - 2 : gridSize - 6 - (i*0.2);
+            if (size < 10) size = 10;
+
+            ctx.beginPath();
+            ctx.roundRect(renderX + (gridSize-size)/2, renderY + (gridSize-size)/2, size, size, 10);
+            ctx.fill();
+
+            // Brillo Glossy en cada parte del cuerpo
+            ctx.fillStyle = 'rgba(255,255,255,0.3)';
+            ctx.fillRect(renderX + 8, renderY + 8, size/2, 4);
+
+            // Ojos de la serpiente
+            if (i === 0) {
+                ctx.fillStyle = 'white';
+                ctx.beginPath();
+                ctx.arc(renderX + 10, renderY + 10, 4, 0, Math.PI*2);
+                ctx.arc(renderX + 20, renderY + 10, 4, 0, Math.PI*2);
+                ctx.fill();
+                ctx.fillStyle = 'black';
+                ctx.beginPath();
+                ctx.arc(renderX + 10, renderY + 10, 2, 0, Math.PI*2);
+                ctx.arc(renderX + 20, renderY + 10, 2, 0, Math.PI*2);
+                ctx.fill();
+            }
+        }
+
+        // Partículas
+        particles.forEach((p, index) => {
+            p.draw();
+            p.x += p.vx;
+            p.y += p.vy;
+            if (p.alpha <= 0) particles.splice(index, 1);
+        });
+
+        ctx.shadowBlur = 0;
+        ctx.globalAlpha = 1;
+        
+        requestAnimationFrame(() => {
+            update();
+            draw();
+        });
+    }
+
+    // Burbujas de fondo dinámicas
+    function createBgBubbles() {
+        const bg = document.getElementById('aero-bg');
+        for(let i=0; i<20; i++) {
+            const b = document.createElement('div');
+            b.className = 'bubble';
+            const size = Math.random() * 60 + 20;
+            b.style.width = size + 'px';
+            b.style.height = size + 'px';
+            b.style.left = Math.random() * 100 + 'vw';
+            b.style.animationDuration = (Math.random() * 5 + 5) + 's';
+            b.style.animationDelay = (Math.random() * 5) + 's';
+            bg.appendChild(b);
+        }
+    }
+
+    createBgBubbles();
+    draw(); // Iniciar loop visual
+</script>
+</body>
+</html>
